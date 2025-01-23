@@ -1,10 +1,17 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Stage, Layer, Line } from "react-konva";
-import { Edit, Play, Pause, AlertTriangle,RefreshCw, Check, Square as SquareIcon } from "lucide-react";
+import {
+  Edit,
+  Play,
+  Pause,
+  AlertTriangle,
+  RefreshCw,
+  Check,
+  Square as SquareIcon,
+} from "lucide-react";
 import Navbar from "./Navbar";
 import { io } from "socket.io-client";
 import ReportDownloadButton from "./Report";
-
 
 function Dashboard() {
   const [username, setUsername] = useState("");
@@ -20,7 +27,7 @@ function Dashboard() {
   const [perimeter, setPerimeter] = useState([]);
   const [currentPerimeter, setCurrentPerimeter] = useState([]);
   const [videoSize, setVideoSize] = useState({ width: 0, height: 0 });
-  
+
   const [isUpdatingPerimeter, setIsUpdatingPerimeter] = useState(false);
 
   const videoRef = useRef(null);
@@ -67,56 +74,62 @@ function Dashboard() {
   const startStream = async () => {
     const token = localStorage.getItem("token");
     try {
-        const response = await fetch("http://127.0.0.1:8000/api/start-stream", { // Added /api prefix
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}` // Added Bearer prefix
-            },
-            body: JSON.stringify({ rtsp_url: rtspUrl }),
-        });
-
-        const data = await response.json();
-        if (response.ok && data.streamId) {
-            setStreamId(data.streamId);
-            setIsPlaying(true);
-            setStreamError(null);
-            socketRef.current = connectWebSocket(data.streamId);
-        } else {
-            setStreamError(data.detail || "Failed to start stream");
-        }
-    } catch (error) {
-        console.error("Failed to start stream:", error);
-        setStreamError("Failed to start stream. Please check the server connection.");
-    }
-};
-const stopStream = async () => {
-  const token = localStorage.getItem("token");
-  if (streamId) {
-    try {
-      const response = await fetch(`http://127.0.0.1:8000/api/stop-stream/${streamId}`, {
+      const response = await fetch("http://127.0.0.1:8000/api/start-stream", {
+        // Added /api prefix
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
+          Authorization: `Bearer ${token}`, // Added Bearer prefix
         },
+        body: JSON.stringify({ rtsp_url: rtspUrl }),
       });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to stop stream: ${response.statusText}`);
+
+      const data = await response.json();
+      if (response.ok && data.streamId) {
+        setStreamId(data.streamId);
+        setIsPlaying(true);
+        setStreamError(null);
+        socketRef.current = connectWebSocket(data.streamId);
+      } else {
+        setStreamError(data.detail || "Failed to start stream");
       }
     } catch (error) {
-      console.error("Failed to stop stream:", error);
-      setStreamError("Failed to stop stream: " + error.message);
+      console.error("Failed to start stream:", error);
+      setStreamError(
+        "Failed to start stream. Please check the server connection."
+      );
     }
-  }
+  };
+  const stopStream = async () => {
+    const token = localStorage.getItem("token");
+    if (streamId) {
+      try {
+        const response = await fetch(
+          `http://127.0.0.1:8000/api/stop-stream/${streamId}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
 
-  if (socketRef.current) {
-    socketRef.current.disconnect();
-  }
-  setStreamId(null);
-  setIsPlaying(false);
-};
+        if (!response.ok) {
+          throw new Error(`Failed to stop stream: ${response.statusText}`);
+        }
+      } catch (error) {
+        console.error("Failed to stop stream:", error);
+        setStreamError("Failed to stop stream: " + error.message);
+      }
+    }
+
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+    }
+    setStreamId(null);
+    setIsPlaying(false);
+  };
 
   const handleStreamToggle = () => {
     if (isPlaying) {
@@ -126,7 +139,7 @@ const stopStream = async () => {
     }
   };
 
- const connectWebSocket = (streamId) => {
+  const connectWebSocket = (streamId) => {
     const socket = io("http://127.0.0.1:8000", {
       path: "/socket.io",
       transports: ["websocket"],
@@ -134,9 +147,9 @@ const stopStream = async () => {
       timeout: 5000,
       reconnection: true,
       reconnectionAttempts: 3,
-      reconnectionDelay: 1000
+      reconnectionDelay: 1000,
     });
-    
+
     socket.on("connect", () => {
       console.log("Socket.IO connected");
       setStreamError(null);
@@ -147,17 +160,48 @@ const stopStream = async () => {
         videoRef.current.src = `data:image/jpeg;base64,${data.image}`;
       }
     });
-
     socket.on(`breach-${streamId}`, (breachData) => {
-      setBreaches((prev) => [{
-        id: Date.now(),
-        time: new Date(breachData.timestamp).toLocaleString(),
-        objectType: breachData.object_type || "Person",
-        status: breachData.status || "Alert",
-        confidence: breachData.confidence.toFixed(2),
-        photo: `data:image/jpeg;base64,${breachData.image}`
-      }, ...prev.slice(0, 49)]); // Keep last 50 breaches
+      const utcDate = new Date(breachData.timestamp); // Get the UTC timestamp
+      utcDate.setHours(utcDate.getHours() + 5); // Add 4 hours for IST
+      utcDate.setMinutes(utcDate.getMinutes() + 30); // Add 30 minutes for IST
+
+      // Format the adjusted date to the desired string format
+      const istTime = utcDate.toLocaleString("en-IN", {
+        hour12: true, // Use 12-hour format (AM/PM)
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+
+      setBreaches((prev) => [
+        {
+          id: Date.now(),
+          time: istTime, // Display IST time
+          objectType: breachData.object_type || "Person",
+          status: breachData.status || "Alert",
+          confidence: breachData.confidence.toFixed(2),
+          photo: `data:image/jpeg;base64,${breachData.image}`,
+          onClick: () =>
+            window.open(`data:image/jpeg;base64,${breachData.image}`, "_blank"),
+        },
+        ...prev.slice(0, 99),
+      ]); // Keep last 100 breaches
     });
+
+    // socket.on(`breach-${streamId}`, (breachData) => {
+    //   const istTime = new Date(breachData.timestamp).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+    //   setBreaches((prev) => [{
+    //     id: Date.now(),
+    //     time: isTime,
+    //     objectType: breachData.object_type || "Person",
+    //     status: breachData.status || "Alert",
+    //     confidence: breachData.confidence.toFixed(2),
+    //     photo: `data:image/jpeg;base64,${breachData.image}`
+    //   }, ...prev.slice(0, 100)]); // Keep last 100 breaches
+    // });
 
     socket.on(`stream-error-${streamId}`, (error) => {
       console.error("Stream error:", error);
@@ -173,70 +217,69 @@ const stopStream = async () => {
     return socket;
   };
 
-
-// Update perimeter function to include api prefix
-const sendPerimeterToBackend = async (points) => {
-  const videoContainer = document.querySelector('.video-container'); // Or however you select your video container
-  const containerWidth = videoContainer.clientWidth;
-  const containerHeight = videoContainer.clientHeight;
-  console.log(containerHeight, containerWidth)
-  console.log(videoContainer)
-  try {
-      const response = await fetch('http://127.0.0.1:8000/api/add-perimeter', {
-          method: "POST",
-          headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-          body: JSON.stringify({
-              stream_id: streamId,
-              points: points,
-              containerWidth: containerWidth,
-              containerHeight: containerHeight
-          }),
+  // Update perimeter function to include api prefix
+  const sendPerimeterToBackend = async (points) => {
+    const videoContainer = document.querySelector(".video-container"); // Or however you select your video container
+    const containerWidth = videoContainer.clientWidth;
+    const containerHeight = videoContainer.clientHeight;
+    console.log(containerHeight, containerWidth);
+    console.log(videoContainer);
+    try {
+      const response = await fetch("http://127.0.0.1:8000/api/add-perimeter", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify({
+          stream_id: streamId,
+          points: points,
+          containerWidth: containerWidth,
+          containerHeight: containerHeight,
+        }),
       });
 
       console.log("Sending streamId to backend:", streamId);
 
       if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to save perimeter");
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to save perimeter");
       }
-  } catch (error) {
+    } catch (error) {
       console.error("Error saving perimeter:", error);
       setStreamError("Failed to save perimeter boundary");
-  }
-};
+    }
+  };
   // Update the useEffect hook to clean up the socket connection:
   useEffect(() => {
     fetchUserInfo();
 
     const handleResize = () => {
-        if (videoContainerRef.current && stageRef.current) {
-            const container = videoContainerRef.current;
-            const stage = stageRef.current;
-            stage.width(container.offsetWidth);
-            stage.height(container.offsetHeight);
-        }
+      if (videoContainerRef.current && stageRef.current) {
+        const container = videoContainerRef.current;
+        const stage = stageRef.current;
+        stage.width(container.offsetWidth);
+        stage.height(container.offsetHeight);
+      }
     };
 
     window.addEventListener("resize", handleResize);
     handleResize();
 
     return () => {
-        window.removeEventListener("resize", handleResize);
+      window.removeEventListener("resize", handleResize);
 
-        if (socketRef.current) {
-            socketRef.current.off(`stream-${streamId}`);
-            socketRef.current.off(`breach-${streamId}`);
-            socketRef.current.disconnect();
-        }
+      if (socketRef.current) {
+        socketRef.current.off(`stream-${streamId}`);
+        socketRef.current.off(`breach-${streamId}`);
+        socketRef.current.disconnect();
+      }
 
-        if (isPlaying) {
-            stopStream();
-        }
+      if (isPlaying) {
+        stopStream();
+      }
     };
-}, []);
+  }, []);
   const handleMouseDown = (e) => {
     if (!isDrawingPerimeter) return;
     const pos = e.target.getStage().getPointerPosition();
@@ -274,19 +317,20 @@ const sendPerimeterToBackend = async (points) => {
     }
   };
 
-
   return (
     <>
       <Navbar username={username} onLogout={handleLogout} />
-      <div className="min-h-screen bg-gray-100 p-4 sm:p-6 md:p-8">
+      <div className="min-h-screen font-roboto bg-gray-100 p-4 sm:p-6 md:p-8">
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Video Container */}
           <div className="w-full lg:w-[60%] bg-white rounded-lg shadow-md">
             <div className="p-6 flex flex-col gap-4">
               <div className="flex justify-between items-center">
-                <h2 className="text-xl font-semibold">PERIMETER BREACH DETECTION</h2>
+                <h2 className="text-xl font-semibold">
+                  PERIMETER BREACH DETECTION
+                </h2>
                 <div className="flex gap-2">
-                <button
+                  <button
                     className={`px-4 py-2 rounded-md flex items-center gap-2 ${
                       isDrawingPerimeter || isUpdatingPerimeter
                         ? "bg-blue-500 text-white"
@@ -307,7 +351,6 @@ const sendPerimeterToBackend = async (points) => {
                         : "Add Perimeter"}
                     </span>
                   </button>
-                  
                 </div>
               </div>
 
@@ -385,11 +428,11 @@ const sendPerimeterToBackend = async (points) => {
 
           {/* Breach Logs */}
           <div className="w-full lg:w-[40%] bg-white rounded-lg shadow-md">
-            <div className="p-6">
+            <div className="p-6 flex flex-col">
+              <div className="flex flex-row justify-between py-8">
               <h2 className="text-lg font-semibold mb-4">Breach Logs</h2>
-              {streamId && (
-  <ReportDownloadButton streamId={streamId} />
-)}
+              {streamId && <ReportDownloadButton streamId={streamId} />}
+              </div>
               <div className="overflow-y-auto max-h-[70vh]">
                 <table className="w-full">
                   <thead>
@@ -433,7 +476,8 @@ const sendPerimeterToBackend = async (points) => {
                             src={breach.photo}
                             alt="Breach"
                             className="w-20 h-16 object-cover rounded cursor-pointer"
-                            onClick={() => window.open(breach.photo, "_blank")}
+                            style={{ cursor: "pointer" }}
+                            onClick={breach.onClick}
                           />
                         </td>
                       </tr>
@@ -450,4 +494,3 @@ const sendPerimeterToBackend = async (points) => {
 }
 
 export default Dashboard;
-
